@@ -21,3 +21,6 @@ class BasicsTestCase(unittest.TestCase):
 
     def test_app_is_testing(self):
         self.assertTrue(current_app.config['TESTING'])
+
+#if __name__=="__main__":
+ #   unittest.main()

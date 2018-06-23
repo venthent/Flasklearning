@@ -1,5 +1,7 @@
 from Flasklearning.flaskyy.app import db
 from werkzeug.security import generate_password_hash,check_password_hash
+from flask_login import UserMixin
+from Flasklearning.flaskyy.app import login_manager
 
 class Role(db.Model):
     __tablename__ = 'roles'
@@ -11,9 +13,10 @@ class Role(db.Model):
         return '<Role % r>' % self.name
 
 
-class User(db.Model):
+class User(UserMixin,db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
+    email=db.Column(db.String(64),unique=True,index=True)
     username = db.Column(db.String(64), unique=True, index=True)
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'))
     password_hash = db.Column(db.String(128))
@@ -36,3 +39,8 @@ True ,就表明密码是正确的'''
 
     def __repr__(self):
         return '<User % r>' % self.username
+
+@login_manager.user_loader
+def load_user(user_id):
+    '''回调函数接收以 Unicode 字符串形式表示的用户标识符'''
+    return User.query.get(int(user_id))
