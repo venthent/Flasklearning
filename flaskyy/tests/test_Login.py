@@ -3,7 +3,6 @@ from Flasklearning.flaskyy.app import create_app,db
 from Flasklearning.flaskyy.app.models import User
 
 
-
 class LoginTest(unittest.TestCase):
 
     def setUp(self):
