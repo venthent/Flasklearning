@@ -1,26 +1,29 @@
 import unittest
-from Flasklearning.flaskyy.app.models import User
+from Flasklearning.flaskyy.app.models import User,Role,Permission,AnonymousUser
+from Flasklearning.flaskyy.app import create_app,db
+
 
 class UserModelTestCase(unittest.TestCase):
-    def test_password_setter(self):
-        u=User(password='cat')
-        self.assertTrue(u.password_hash is not None)
+    def setUp(self):
+        self.app=create_app('testing')
+        self.app_context=self.app.app_context()
+        self.app_context.push()
+        db.create_all()
+        Role.insert_roles()
 
-    def test_no_password_getter(self):
-        u = User(password='cat')
-        # 访问password时，我们期待抛出AttributeError：
-        with self.assertRaises(AttributeError):
-            u.password
+    def tearDown(self):
+        db.session.remove()
+        db.drop_all()
+        self.app_context.pop()
 
-    def test_password_vertify(self):
-        u=User(password='cat')
-        self.assertTrue(u.verity_password('cat'))
-        self.assertTrue(u.verity_password('dog') is False)
+    def test_roles_and_permissions(self):
+        Role.insert_roles()
+        u = User(email='john@example.com', password='cat')
+        self.assertTrue(u.can(Permission.WRITE_ARTICLES))
+        self.assertFalse(u.can(Permission.MODERATE_COMMENTS))
 
-    def test_password_salt_are_random(self):
-        u1=User(password='cat')
-        u2=User(password='cat')
-        self.assertFalse(u1.password_hash==u2.password_hash)
-
-#if __name__=="__main__":
- #   unittest.main()
+    def test_anonymous_user(self):
+        u = AnonymousUser()
+        self.assertFalse(u.can(Permission.FOLLOW))
+if __name__=="__main__":
+   unittest.main()

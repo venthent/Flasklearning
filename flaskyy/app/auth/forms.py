@@ -31,3 +31,10 @@ validate_ 开头且后面跟着字段名的方法,这个方法就和常规的验
     def validate_username(self,field):
         if User.query.filter_by(username=field.data).first():
             raise ValidationError("Username already in use.")
+
+
+class ChangePasswordForm(FlaskForm):
+    old_password=PasswordField('Old password:',validators=[DataRequired()])
+    password=PasswordField('New password',validators=[DataRequired(),EqualTo('password2',message='Passwords must match')])
+    password2=PasswordField('Confirm your password again',validators=[DataRequired()])
+    submit=SubmitField("Upgrade password")

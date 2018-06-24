@@ -11,6 +11,7 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     FLASKY_MAIL_SUBJECT_PREFIX = '[Flasky]'
     FLASKY_MAIL_SENDER = 'Flasky Admin <flasky@example.com>'
+    FLASKY_ADMIN="13533801264@163.com"
 
     @staticmethod
     def init_app(app):

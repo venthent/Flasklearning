@@ -1,17 +1,47 @@
-from Flasklearning.flaskyy.app import db
-from werkzeug.security import generate_password_hash, check_password_hash
-from flask_login import UserMixin
-from Flasklearning.flaskyy.app import login_manager
-from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from flask import current_app
+from flask_login import UserMixin, AnonymousUserMixin
+from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
+from werkzeug.security import generate_password_hash, check_password_hash
+
+from Flasklearning.flaskyy.app import db
+from Flasklearning.flaskyy.app import login_manager
+
+
+class Permission:
+    FOLLOW = 0x01
+    COMMENT = 0x02
+    WRITE_ARTICLES = 0x04
+    MODERATE_COMMENTS = 0x08
+    ADMINISTER = 0x80
 
 
 class Role(db.Model):
     __tablename__ = 'roles'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(64), unique=True)
+    default = db.Column(db.Boolean, default=False, index=True)  # index如果设为True，创建索引，提升查询效率
+    permissions = db.Column(db.Integer)
     user = db.relationship('User', backref='role', lazy='dynamic')
 
+    @staticmethod
+    def insert_roles():
+        '''将角色手动添加到数据库中既耗时又容易出错。作为替代,我们要在 Role 类中添加一个类
+方法,完成这个操作'''
+        roles = {
+            'User': (Permission.FOLLOW | Permission.COMMENT | Permission.WRITE_ARTICLES, True),
+            'Moderator': (
+                Permission.FOLLOW | Permission.COMMENT | Permission.WRITE_ARTICLES | Permission.MODERATE_COMMENTS,
+                False),
+            'Administrator': (0xff, False)
+        }
+        for r in roles:
+            role = Role.query.filter_by(name=r).first()
+            if role is None:
+                role = Role(name=r)
+            role.permissions = roles[r][0]
+            role.default = roles[r][1]
+            db.session.add(role)
+        db.session.commit()
 
     def __repr__(self):
         return '<Role % r>' % self.name
@@ -26,22 +56,43 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(128))
     confirmed = db.Column(db.Boolean, default=False)
 
-    def generate_confirmation_token(self,expiration=3600):
-        #确认用户账户
-        s=Serializer(current_app.config['SECRET_KEY'],expiration)
-        return s.dumps({'confirm':self.id })
+    def __init__(self, **kwargs):
+        '''用户在程序中注册账户时,会被赋予适当的角色。大多数用户在注册时赋予的角色都是
+“用户”,因为这是默认角色。唯一的例外是管理员,管理员在最开始就应该赋予“管理
+员”角色。管理员由保存在设置变量 FLASKY_ADMIN 中的电子邮件地址识别,只要这个电子
+邮件地址出现在注册请求中,就会被赋予正确的角色.User 类的构造函数首先调用基类的构造函数,如果创建基类对象后还没定义角色,则根据
+电子邮件地址决定将其设为管理员还是默认角色'''
+        super(User, self).__init__(**kwargs)
+        if self.role is None:
+            if self.email == current_app.config['FLASKY_ADMIN']:
+                self.role = Role.query.filter_by(permissions=0xff)
+            if self.role is None:
+                self.role = Role.query.filter_by(default=True).first()
 
-    def confirm(self,token):
-        s=Serializer(current_app.config['SECRET_KEY'])
+    def generate_confirmation_token(self, expiration=3600):
+        # 确认用户账户
+        s = Serializer(current_app.config['SECRET_KEY'], expiration)
+        return s.dumps({'confirm': self.id})
+
+    def confirm(self, token):
+        s = Serializer(current_app.config['SECRET_KEY'])
         try:
-            data=s.loads(token)
+            data = s.loads(token)
         except:
             return False
-        if data.get('confirm') !=self.id:
+        if data.get('confirm') != self.id:
             return False
-        self.confirmed=True
-        #db.session.add(self)
+        self.confirmed = True
+        # db.session.add(self)
         return True
+
+    def can(self, permissions):
+        '''User 模型中添加的 can() 方法在请求和赋予角色这两种权限之间进行位与操作。如果角色
+中包含请求的所有权限位,则返回 True ,表示允许用户执行此项操作'''
+        return self.role is not None and (self.role.permissions & permissions) == permissions
+
+    def is_administrator(self):
+        return self.can(Permission.ADMINISTER)
 
     @property
     def password(self):
@@ -61,6 +112,17 @@ True ,就表明密码是正确的'''
 
     def __repr__(self):
         return '<User % r>' % self.username
+
+
+class AnonymousUser(AnonymousUserMixin):
+    def can(self, permissions):
+        return False
+
+    def is_administrator(self):
+        return False
+
+
+login_manager.anonymous_user = AnonymousUser
 
 
 @login_manager.user_loader

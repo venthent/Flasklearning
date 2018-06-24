@@ -2,7 +2,7 @@ from flask import render_template, url_for, flash, redirect, request, g
 from Flasklearning.flaskyy.app.auth import auth
 from flask_login import logout_user, login_user, login_required, current_user
 from Flasklearning.flaskyy.app.models import User
-from .forms import LoginForm, RegistrationForm
+from .forms import LoginForm, RegistrationForm,ChangePasswordForm
 from Flasklearning.flaskyy.app import db
 from Flasklearning.flaskyy.app.email import send_async_email, send_email
 from flask_login import current_user
@@ -82,3 +82,18 @@ def resend_confirmation():
                    user=current_user, token=token)
     flash('A new confirmation email has been sent to you by email.')
     return redirect(url_for('main.index'))
+
+@auth.route('/change_password',methods=["POST","GET"])
+@login_required
+def change_password():
+    form=ChangePasswordForm()
+    if form.validate_on_submit():
+        if current_user.verity_password(form.old_password.data):
+            current_user.password=form.old_password.data
+            db.session.add(current_user)
+            db.session.commit()
+            flash("Your password have been changed!")
+            return redirect(url_for('main.index'))
+        else:
+            flash('Invalid Password.')
+    return render_template('auth/change_password.html',form=form)
