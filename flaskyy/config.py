@@ -33,6 +33,12 @@ class DevelopmentConfig(Config):
 
 class TestingConfig(Config):
     TESING = True
+    MAIL_SERVER = 'smtp.qq.com'
+    MAIL_SUPPRESS_SEND = False
+    MAIL_PORT = 465
+    MAIL_USE_SSL = True
+    MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
+    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
     SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://root:1111@localhost/TEST'
 
 

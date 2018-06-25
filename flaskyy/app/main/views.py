@@ -1,5 +1,5 @@
 from datetime import datetime
-from flask import render_template,session,redirect,url_for
+from flask import render_template,session,redirect,url_for,abort
 from Flasklearning.flaskyy.app.main import main
 from .forms import NameForm
 from Flasklearning.flaskyy.app import db,models
@@ -24,3 +24,12 @@ def index():
         #index') 。在这种写法中,命名空间是当前请求所在的蓝本
         return redirect(url_for('.index'))
     return render_template('index.html', name=session.get('name'), form=form, known=session.get('known', False))
+
+
+@main.route('/user/<username>')
+def user(username):
+    user=models.User.query.filter_by(username=username).first()
+    if user is None:
+        abort(404)
+    else:
+        return render_template('user.html',user=user)

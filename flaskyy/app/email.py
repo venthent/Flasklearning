@@ -10,9 +10,10 @@ def send_async_email(app,msg):
 
 
 def send_email(subject,to,template,**kwargs):
-    msg=Message(subject=subject,sender='1627237372@qq.com',recipients=[to])
+    app=current_app._get_current_object()
+    msg=Message(subject=subject,sender='1627237372@qq.com',recipients=to)
     msg.html=render_template(template+'.html',**kwargs)
-    thr=Thread(target='send_async_email',args=[current_app,msg])
+    thr=Thread(target=send_async_email,args=[app,msg])
     thr.start()
     return thr
 

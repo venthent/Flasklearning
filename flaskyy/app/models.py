@@ -1,8 +1,8 @@
+from datetime import datetime
 from flask import current_app
 from flask_login import UserMixin, AnonymousUserMixin
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from werkzeug.security import generate_password_hash, check_password_hash
-
 from Flasklearning.flaskyy.app import db
 from Flasklearning.flaskyy.app import login_manager
 
@@ -55,17 +55,24 @@ class User(UserMixin, db.Model):
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'))
     password_hash = db.Column(db.String(128))
     confirmed = db.Column(db.Boolean, default=False)
+    name = db.Column(db.String(64))
+    location = db.Column(db.String(64))
+    about_me = db.Column(db.Text())  # db.String 和 db.Text 的区别在于后者不需要指定最大长度。
+    # 注意, datetime.utcnow 后面没有 () ,因为 db.Column()
+    # 的 default 参数可以接受函数作为默认值
+    member_since = db.Column(db.DateTime(), default=datetime.utcnow)
+    last_seen = db.Column(db.DateTime(), default=datetime.utcnow)
 
     def __init__(self, **kwargs):
         '''用户在程序中注册账户时,会被赋予适当的角色。大多数用户在注册时赋予的角色都是
-“用户”,因为这是默认角色。唯一的例外是管理员,管理员在最开始就应该赋予“管理
-员”角色。管理员由保存在设置变量 FLASKY_ADMIN 中的电子邮件地址识别,只要这个电子
-邮件地址出现在注册请求中,就会被赋予正确的角色.User 类的构造函数首先调用基类的构造函数,如果创建基类对象后还没定义角色,则根据
-电子邮件地址决定将其设为管理员还是默认角色'''
+    “用户”,因为这是默认角色。唯一的例外是管理员,管理员在最开始就应该赋予“管理
+    员”角色。管理员由保存在设置变量 FLASKY_ADMIN 中的电子邮件地址识别,只要这个电子
+    邮件地址出现在注册请求中,就会被赋予正确的角色.User 类的构造函数首先调用基类的构造函数,如果创建基类对象后还没定义角色,则根据
+    电子邮件地址决定将其设为管理员还是默认角色'''
         super(User, self).__init__(**kwargs)
         if self.role is None:
             if self.email == current_app.config['FLASKY_ADMIN']:
-                self.role = Role.query.filter_by(permissions=0xff)
+                self.role = Role.query.filter_by(permissions=0xff).first()
             if self.role is None:
                 self.role = Role.query.filter_by(default=True).first()
 
@@ -88,7 +95,7 @@ class User(UserMixin, db.Model):
 
     def can(self, permissions):
         '''User 模型中添加的 can() 方法在请求和赋予角色这两种权限之间进行位与操作。如果角色
-中包含请求的所有权限位,则返回 True ,表示允许用户执行此项操作'''
+    中包含请求的所有权限位,则返回 True ,表示允许用户执行此项操作'''
         return self.role is not None and (self.role.permissions & permissions) == permissions
 
     def is_administrator(self):
@@ -105,20 +112,28 @@ class User(UserMixin, db.Model):
 
     def verity_password(self, password):
         '''verify_password 方 法 接 受 一 个 参 数( 即 密 码 )
-, 将 其 传 给 Werkzeug 提 供 的 check_
-password_hash() 函数,和存储在 User 模型中的密码散列值进行比对。如果这个方法返回
-True ,就表明密码是正确的'''
+    , 将 其 传 给 Werkzeug 提 供 的 check_
+    password_hash() 函数,和存储在 User 模型中的密码散列值进行比对。如果这个方法返回
+    True ,就表明密码是正确的'''
         return check_password_hash(self.password_hash, password)
+
+    def ping(self):
+        self.last_seen = datetime.utcnow()
 
     def __repr__(self):
         return '<User % r>' % self.username
 
 
 class AnonymousUser(AnonymousUserMixin):
+
     def can(self, permissions):
         return False
 
     def is_administrator(self):
+        return False
+
+    @property
+    def confirmed(self):
         return False
 
 
