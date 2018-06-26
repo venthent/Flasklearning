@@ -62,7 +62,7 @@ class User(UserMixin, db.Model):
     # 的 default 参数可以接受函数作为默认值
     member_since = db.Column(db.DateTime(), default=datetime.utcnow)
     last_seen = db.Column(db.DateTime(), default=datetime.utcnow)
-    posts=db.relationship('Post',backref='author',lazy='dynamic')
+    posts = db.relationship('Post', backref='author', lazy='dynamic')
 
     def __init__(self, **kwargs):
         '''用户在程序中注册账户时,会被赋予适当的角色。大多数用户在注册时赋予的角色都是
@@ -111,6 +111,31 @@ class User(UserMixin, db.Model):
     def password(self, password):
         self.password_hash = generate_password_hash(password)
 
+    @staticmethod
+    def generate_fake(count=100):
+        '''生成虚拟用户和博客文章'''
+        from sqlalchemy.exc import IntegrityError
+        from random import seed
+        import forgery_py
+
+        seed()
+        for i in range(count):
+            u = User(
+                email=forgery_py.internet.email_address(),
+                username=forgery_py.internet.user_name(),
+                password=forgery_py.lorem_ipsum.word(),
+                confirmed=True,
+                name=forgery_py.name.full_name(),
+                location=forgery_py.address.city(),
+                about_me=forgery_py.lorem_ipsum.sentence(),
+                member_since=forgery_py.date.date(True)
+            )
+            db.session.add(u)
+            try:
+                db.session.commit()
+            except IntegrityError:
+                db.session.rollback()
+
     def verity_password(self, password):
         '''verify_password 方 法 接 受 一 个 参 数( 即 密 码 )
     , 将 其 传 给 Werkzeug 提 供 的 check_
@@ -124,13 +149,32 @@ class User(UserMixin, db.Model):
     def __repr__(self):
         return '<User % r>' % self.username
 
-class Post(db.Model):
-    __tablename__='posts'
-    id=db.Column(db.Integer,primary_key=True)
-    body=db.Column(db.Text)
-    timestamp=db.Column(db.DateTime,index=True,default=datetime.utcnow) #utcnow need not "()"
-    author_id=db.Column(db.Integer,db.ForeignKey('users.id'))
 
+class Post(db.Model):
+    __tablename__ = 'posts'
+    id = db.Column(db.Integer, primary_key=True)
+    body = db.Column(db.Text)
+    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)  # utcnow need not "()"
+    author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+
+    @staticmethod
+    def generate_fake(count=100):
+        from random import seed, randint
+        import forgery_py
+        seed()
+        user_count = User.query.count()
+        for i in range(count):
+            # 我们使用 offset() 查询过滤器。
+            # 这个过滤器会跳过参数中指定的记录数量。通过设定一个随机的偏移值,再调用 first()
+            # 方法,就能每次都获得一个不同的随机用户
+            u = User.query.offset(randint(0, user_count - 1)).first()
+            p=Post(
+                body=forgery_py.lorem_ipsum.sentences(randint(1,3)),
+                timestamp=forgery_py.date.date(True),
+                author=u
+            )
+            db.session.add(p)
+            db.session.commit()
 
 class AnonymousUser(AnonymousUserMixin):
 

@@ -1,5 +1,5 @@
 from datetime import datetime
-from flask import render_template, session, redirect, url_for, abort, flash
+from flask import render_template, session, redirect, url_for, abort, flash, request, current_app
 from Flasklearning.flaskyy.app.main import main
 from .forms import NameForm, EditProfileForm, EditProfileAdminForm, PostForm
 from Flasklearning.flaskyy.app import db, models
@@ -11,6 +11,7 @@ from Flasklearning.flaskyy.app.models import Permission
 @main.route('/', methods=['GET', 'POST'])
 def index():
     form = PostForm()
+    page = request.args.get('page', 1, type=int)  # 渲染的页数从请求的查询字符串( request.args )中获取
     if form.validate_on_submit() and current_user.can(models.Permission.WRITE_ARTICLES):
         # 注意,新文章对象的 author 属性值为表达式 current_user._get_current_object() 。变量
         # current_user 由 Flask-Login 提供,和所有上下文变量一样,也是通过线程内的代理对象实
@@ -20,8 +21,10 @@ def index():
         db.session.add(posts)
         db.session.commit()
         return redirect(url_for('main.index'))
-    posts=models.Post.query.order_by(models.Post.timestamp.desc()).all()
-    return render_template('index.html',posts=posts,form=form)
+    pagination = models.Post.query.order_by(models.Post.timestamp.desc()).paginate(page, per_page=current_app.config[
+        "FLASKY_POSTS_PER_PAGE"], error_out=False)
+    posts=pagination.items
+    return render_template('index.html', posts=posts, form=form,pagination=pagination)
 
 
 @main.route('/user/<username>')
@@ -29,8 +32,8 @@ def user(username):
     user = models.User.query.filter_by(username=username).first()
     if user is None:
         abort(404)
-    else:
-        return render_template('user.html', user=user)
+    posts = user.posts.order_by(models.Post.timestamp.desc()).all()
+    return render_template('user.html', user=user, posts=posts)
 
 
 @main.route('/edit-profile', methods=["GET", "POST"])  # 用户级别的资料编辑器
