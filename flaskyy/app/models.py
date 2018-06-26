@@ -62,6 +62,7 @@ class User(UserMixin, db.Model):
     # 的 default 参数可以接受函数作为默认值
     member_since = db.Column(db.DateTime(), default=datetime.utcnow)
     last_seen = db.Column(db.DateTime(), default=datetime.utcnow)
+    posts=db.relationship('Post',backref='author',lazy='dynamic')
 
     def __init__(self, **kwargs):
         '''用户在程序中注册账户时,会被赋予适当的角色。大多数用户在注册时赋予的角色都是
@@ -122,6 +123,13 @@ class User(UserMixin, db.Model):
 
     def __repr__(self):
         return '<User % r>' % self.username
+
+class Post(db.Model):
+    __tablename__='posts'
+    id=db.Column(db.Integer,primary_key=True)
+    body=db.Column(db.Text)
+    timestamp=db.Column(db.DateTime,index=True,default=datetime.utcnow) #utcnow need not "()"
+    author_id=db.Column(db.Integer,db.ForeignKey('users.id'))
 
 
 class AnonymousUser(AnonymousUserMixin):

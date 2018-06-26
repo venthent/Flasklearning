@@ -1,31 +1,27 @@
 from datetime import datetime
 from flask import render_template, session, redirect, url_for, abort, flash
 from Flasklearning.flaskyy.app.main import main
-from .forms import NameForm, EditProfileForm, EditProfileAdminForm
+from .forms import NameForm, EditProfileForm, EditProfileAdminForm, PostForm
 from Flasklearning.flaskyy.app import db, models
 from flask_login import login_required, current_user
 from Flasklearning.flaskyy.app.decorators import admin_required
+from Flasklearning.flaskyy.app.models import Permission
 
 
 @main.route('/', methods=['GET', 'POST'])
 def index():
-    form = NameForm()
-    if form.validate_on_submit():
-        user = models.User.query.filter_by(username=form.name.data).first()
-        old_name = session.get('name')
-        if user is None:
-            user = models.User(username=form.name.data)
-            db.session.add(user)
-            db.session.commit()
-            session['known'] = False
-        else:
-            session['known'] = True
-        session['name'] = form.name.data
-        form.name.data = ''
-        # 蓝本中可以省略蓝本名,例如 url_for('.
-        # index') 。在这种写法中,命名空间是当前请求所在的蓝本
-        return redirect(url_for('.index'))
-    return render_template('index.html', name=session.get('name'), form=form, known=session.get('known', False))
+    form = PostForm()
+    if form.validate_on_submit() and current_user.can(models.Permission.WRITE_ARTICLES):
+        # 注意,新文章对象的 author 属性值为表达式 current_user._get_current_object() 。变量
+        # current_user 由 Flask-Login 提供,和所有上下文变量一样,也是通过线程内的代理对象实
+        # 现。这个对象的表现类似用户对象,但实际上却是一个轻度包装,包含真正的用户对象。
+        # 数据库需要真正的用户对象,因此要调用 _get_current_object() 方法。
+        posts = models.Post(body=form.body.data, author=current_user._get_current_object())
+        db.session.add(posts)
+        db.session.commit()
+        return redirect(url_for('main.index'))
+    posts=models.Post.query.order_by(models.Post.timestamp.desc()).all()
+    return render_template('index.html',posts=posts,form=form)
 
 
 @main.route('/user/<username>')
@@ -73,11 +69,11 @@ def edit_profile_admin(id):
         db.session.add(user)
         db.session.commit()
         flash('The profile has been updated.')
-        return redirect(url_for('main.user',username=user.username))
+        return redirect(url_for('main.user', username=user.username))
     form.email.data = user.email
     form.username.data = user.username
-    form.confirmed.data =user.confirmed
-    form.name.data =user.name
-    form.location.data =user.location
-    form.about_me.data =user.about_me
-    return render_template('edit_profile.html',form=form,user=user)
+    form.confirmed.data = user.confirmed
+    form.name.data = user.name
+    form.location.data = user.location
+    form.about_me.data = user.about_me
+    return render_template('edit_profile.html', form=form, user=user)

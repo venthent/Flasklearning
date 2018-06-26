@@ -48,3 +48,9 @@ mail 和 username 字段的构造方式和认证表单中的一样,但处理验�
     def validate_username(self, field):
         if field.data != self.user.username and User.query.filter_by(username=field.data).first():
             raise ValidationError("Username already in use")
+
+#博客文章表单
+class PostForm(FlaskForm):
+    body=TextAreaField("Say something:",validators=[DataRequired()])
+    submit=SubmitField('Submit')
+
