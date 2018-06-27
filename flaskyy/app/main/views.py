@@ -80,3 +80,8 @@ def edit_profile_admin(id):
     form.location.data = user.location
     form.about_me.data = user.about_me
     return render_template('edit_profile.html', form=form, user=user)
+
+@main.route('/post/<int:id>')#文章的固定链接
+def post(id):
+    post=models.Post.query.get_or_404(id)
+    return render_template('post.html',posts=[post])  #post.html 模板接收一个列表作为参数,必须要传入列表

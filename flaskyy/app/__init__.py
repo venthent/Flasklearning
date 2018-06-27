@@ -11,6 +11,7 @@ from flask_migrate import Migrate, MigrateCommand
 from Flasklearning.flaskyy import config
 from flask_login import LoginManager
 from flask_mail import Message,Mail
+from flask_pagedown import PageDown
 
 bootstrap = Bootstrap()
 mail = Mail()
@@ -18,6 +19,7 @@ moment = Moment()
 db = SQLAlchemy()
 login_manager = LoginManager()
 mail=Mail()
+pagedown=PageDown()
 #session_protection 属性可以设为 None 、 'basic' 或 'strong' ,以提
 #供不同的安全等级防止用户会话遭篡改。设为 'strong' 时,Flask-Login 会记录客户端 IP
 #地址和浏览器的用户代理信息,如果发现异动就登出用户
@@ -39,6 +41,7 @@ def create_app(config_name):
     db.init_app(app)
     login_manager.init_app(app)
     mail.init_app(app)
+    pagedown.init_app(app)
 
     app.register_blueprint(main_bluprint)
     # url_prefix 是可选参数。如果使用了这个参数,注册后蓝本中定义的

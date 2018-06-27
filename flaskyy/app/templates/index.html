@@ -23,6 +23,11 @@
     {{ macros.pagination_widget(pagination,'main.index') }}
 </div>
 {% endblock %}
-
+<!--Markdown 预览使用 PageDown 库生成,因此要在模板中修改。Flask-PageDown 简化了这
+124 | 第 11 章个过程,提供了一个模板宏,从 CDN 中加载所需文件,如示例 11-14 所示。-->
+{% block scripts %}
+{{ super() }}
+{{ pagedown.include_pagedown() }}
+{% endblock %}
 
 </html>

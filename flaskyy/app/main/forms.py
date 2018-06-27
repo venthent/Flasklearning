@@ -1,6 +1,7 @@
 from flask_wtf import FlaskForm
 from wtforms import SubmitField, StringField, TextAreaField, BooleanField, SelectField, ValidationError
 from wtforms.validators import DataRequired, Length, EqualTo, Email, Regexp
+from flask_pagedown.fields import PageDownField
 from Flasklearning.flaskyy.app.models import Role, User
 
 
@@ -51,6 +52,7 @@ mail 和 username 字段的构造方式和认证表单中的一样,但处理验�
 
 #博客文章表单
 class PostForm(FlaskForm):
-    body=TextAreaField("Say something:",validators=[DataRequired()])
+    body=PageDownField("What's on your mind?",validators=[DataRequired()]) #启用 Markdown 的文章表单
+    #body=TextAreaField("Say something:",validators=[DataRequired()])
     submit=SubmitField('Submit')
 

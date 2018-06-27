@@ -1,5 +1,7 @@
 from datetime import datetime
+import bleach
 from flask import current_app
+from markdown import markdown
 from flask_login import UserMixin, AnonymousUserMixin
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -156,6 +158,15 @@ class Post(db.Model):
     body = db.Column(db.Text)
     timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)  # utcnow need not "()"
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    body_html = db.Column(db.Text)
+
+    @staticmethod
+    def on_changed_body(target, value, oldervalue, initiator):
+        allowed_tags = ['a', 'abbr', 'acronym', 'b', 'blockquote', 'code',
+                        'em', 'i', 'li', 'ol', 'pre', 'strong', 'ul',
+                        'h1', 'h2', 'h3', 'p']
+        target.body_html=bleach.linkify(bleach.clean(markdown(value,output_format='html',tags=allowed_tags,strip=True)))
+
 
     @staticmethod
     def generate_fake(count=100):
@@ -168,13 +179,14 @@ class Post(db.Model):
             # 这个过滤器会跳过参数中指定的记录数量。通过设定一个随机的偏移值,再调用 first()
             # 方法,就能每次都获得一个不同的随机用户
             u = User.query.offset(randint(0, user_count - 1)).first()
-            p=Post(
-                body=forgery_py.lorem_ipsum.sentences(randint(1,3)),
+            p = Post(
+                body=forgery_py.lorem_ipsum.sentences(randint(1, 3)),
                 timestamp=forgery_py.date.date(True),
                 author=u
             )
             db.session.add(p)
             db.session.commit()
+
 
 class AnonymousUser(AnonymousUserMixin):
 
@@ -196,3 +208,5 @@ login_manager.anonymous_user = AnonymousUser
 def load_user(user_id):
     '''回调函数接收以 Unicode 字符串形式表示的用户标识符'''
     return User.query.get(int(user_id))
+
+db.event.listen(Post.body,'set',Post.on_changed_body)#on_changed_body 函数注册在 body 字段上,是 SQLAlchemy“set”事件的监听程序
