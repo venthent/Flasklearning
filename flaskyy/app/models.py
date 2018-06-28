@@ -49,6 +49,13 @@ class Role(db.Model):
         return '<Role % r>' % self.name
 
 
+class Follow(db.Model):  # 关注关联表的模型实现
+    __tablename__ = 'follows'
+    follower_id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True)
+    followed_id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
@@ -65,6 +72,20 @@ class User(UserMixin, db.Model):
     member_since = db.Column(db.DateTime(), default=datetime.utcnow)
     last_seen = db.Column(db.DateTime(), default=datetime.utcnow)
     posts = db.relationship('Post', backref='author', lazy='dynamic')
+    followed = db.relationship(
+        "Follow",
+        foreign_keys=[Follow.followed_id],
+        backref=db.backref('follower', lazy='joined'),
+        lazy='dynamic',  # lazy 参数都在“一”这一侧设定
+        cascade='all,delete-orphan'
+    )
+    followers = db.relationship(
+        "Follow",
+        foreign_keys=[Follow.follower_id],
+        backref=db.backref('followed', lazy='joine'),
+        lazy='dynamic',
+        cascade='all,delete-orphan'
+    )
 
     def __init__(self, **kwargs):
         '''用户在程序中注册账户时,会被赋予适当的角色。大多数用户在注册时赋予的角色都是
@@ -103,6 +124,24 @@ class User(UserMixin, db.Model):
 
     def is_administrator(self):
         return self.can(Permission.ADMINISTER)
+
+    def follow(self, user):
+        if not self.is_following(user=user):
+            f = Follow(follower=self, followed=user)
+            db.session.add(f)
+            db.session.commit()
+
+    def unfollow(self, user):
+        f = self.followed.filter_by(followed_id=user.id).first()
+        if f:
+            db.session.delete(f)
+            db.session.commit()
+
+    def is_following(self, user):
+        return self.followed.filter_by(followed_id=user.id).first() is not None
+
+    def is_followed_by(self, user):
+        return self.followers.filter_by(follower_id=user.id).first() is not None
 
     @property
     def password(self):
@@ -165,8 +204,8 @@ class Post(db.Model):
         allowed_tags = ['a', 'abbr', 'acronym', 'b', 'blockquote', 'code',
                         'em', 'i', 'li', 'ol', 'pre', 'strong', 'ul',
                         'h1', 'h2', 'h3', 'p']
-        target.body_html=bleach.linkify(bleach.clean(markdown(value,output_format='html',tags=allowed_tags,strip=True)))
-
+        target.body_html = bleach.linkify(
+            bleach.clean(markdown(value, output_format='html', tags=allowed_tags, strip=True)))
 
     @staticmethod
     def generate_fake(count=100):
@@ -209,4 +248,5 @@ def load_user(user_id):
     '''回调函数接收以 Unicode 字符串形式表示的用户标识符'''
     return User.query.get(int(user_id))
 
-db.event.listen(Post.body,'set',Post.on_changed_body)#on_changed_body 函数注册在 body 字段上,是 SQLAlchemy“set”事件的监听程序
+
+db.event.listen(Post.body, 'set', Post.on_changed_body)  # on_changed_body 函数注册在 body 字段上,是 SQLAlchemy“set”事件的监听程序
