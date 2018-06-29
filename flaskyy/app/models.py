@@ -74,14 +74,14 @@ class User(UserMixin, db.Model):
     posts = db.relationship('Post', backref='author', lazy='dynamic')
     followed = db.relationship(
         "Follow",
-        foreign_keys=[Follow.followed_id],
+        foreign_keys=[Follow.follower_id],
         backref=db.backref('follower', lazy='joined'),
         lazy='dynamic',  # lazy 参数都在“一”这一侧设定
         cascade='all,delete-orphan'
     )
     followers = db.relationship(
         "Follow",
-        foreign_keys=[Follow.follower_id],
+        foreign_keys=[Follow.followed_id],
         backref=db.backref('followed', lazy='joined'),
         lazy='dynamic',
         cascade='all,delete-orphan'
@@ -138,7 +138,8 @@ class User(UserMixin, db.Model):
             db.session.commit()
 
     def is_following(self, user):
-        return self.followed.filter_by(followed_id=user.id).first() is not None
+        return self.followed.filter_by(followed_id = user.id).first() is not None
+
 
     def is_followed_by(self, user):
         return self.followers.filter_by(follower_id=user.id).first() is not None
@@ -176,6 +177,9 @@ class User(UserMixin, db.Model):
                 db.session.commit()
             except IntegrityError:
                 db.session.rollback()
+    @property
+    def followed_posts(self):#获取所关注用户的文章
+        return Post.query.join(Follow,Follow.followed_id==Post.author_id).filter(Follow.follower_id==self.id)
 
     def verity_password(self, password):
         '''verify_password 方 法 接 受 一 个 参 数( 即 密 码 )

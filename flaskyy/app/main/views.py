@@ -1,5 +1,5 @@
 from datetime import datetime
-from flask import render_template, session, redirect, url_for, abort, flash, request, current_app
+from flask import render_template, session, redirect, url_for, abort, flash, request, current_app,make_response
 from Flasklearning.flaskyy.app.main import main
 from .forms import NameForm, EditProfileForm, EditProfileAdminForm, PostForm
 from Flasklearning.flaskyy.app import db, models
@@ -22,10 +22,17 @@ def index():
         db.session.add(posts)
         db.session.commit()
         return redirect(url_for('main.index'))
-    pagination = models.Post.query.order_by(models.Post.timestamp.desc()).paginate(page, per_page=current_app.config[
+    show_followed = False
+    if current_user.is_authenticated:
+        show_followed=bool(request.cookies.get('show_followed',''))
+    if show_followed:
+        query=current_user.followed_posts
+    else:
+        query=models.Post.query
+    pagination = query.order_by(models.Post.timestamp.desc()).paginate(page, per_page=current_app.config[
         "FLASKY_POSTS_PER_PAGE"], error_out=False)
     posts = pagination.items
-    return render_template('index.html', posts=posts, form=form, pagination=pagination)
+    return render_template('index.html', posts=posts, form=form, show_followed=show_followed,pagination=pagination)
 
 
 @main.route('/user/<username>')
@@ -115,7 +122,7 @@ def unfollow(username):
         return redirect(url_for('main.index'))
     if current_user.is_following(user):
         current_user.unfollow(user)
-        flash('You have unfolloed %s' % username)
+        flash('You have unfollowed %s' % username)
         return redirect(url_for('main.user', username=username))
     else:
         flash('You are not following this user.')
@@ -155,3 +162,15 @@ def followed_by(username):
     ]
     return render_template('followers.html',user=user, title='Followed_by', endpoint='.followed_by',
                            pagination=pagination, follows=follows)
+
+@main.route('/all')
+def show_all():
+    resp=make_response(redirect(url_for('main.index')))
+    resp.set_cookie('show_followed','',max_age=30*24*60*60)
+    return resp
+
+@main.route('/followed')
+def show_followed():
+    resp=make_response(redirect(url_for('main.index')))
+    resp.set_cookie('show_followed','1',max_age=30*24*60*60)
+    return resp
