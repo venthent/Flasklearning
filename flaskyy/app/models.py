@@ -82,7 +82,7 @@ class User(UserMixin, db.Model):
     followers = db.relationship(
         "Follow",
         foreign_keys=[Follow.follower_id],
-        backref=db.backref('followed', lazy='joine'),
+        backref=db.backref('followed', lazy='joined'),
         lazy='dynamic',
         cascade='all,delete-orphan'
     )
@@ -239,6 +239,10 @@ class AnonymousUser(AnonymousUserMixin):
     def confirmed(self):
         return False
 
+    @property
+    def followed_posts(self):
+        return Post.query.join(Follow, Follow.followed_id == Post.author_id) \
+            .filter(Follow.follower_id == None)
 
 login_manager.anonymous_user = AnonymousUser
 

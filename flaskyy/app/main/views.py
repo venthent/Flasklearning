@@ -6,6 +6,7 @@ from Flasklearning.flaskyy.app import db, models
 from flask_login import login_required, current_user
 from Flasklearning.flaskyy.app.decorators import admin_required
 from Flasklearning.flaskyy.app.models import Permission
+from Flasklearning.flaskyy.app.decorators import permission_required, admin_required
 
 
 @main.route('/', methods=['GET', 'POST'])
@@ -23,8 +24,8 @@ def index():
         return redirect(url_for('main.index'))
     pagination = models.Post.query.order_by(models.Post.timestamp.desc()).paginate(page, per_page=current_app.config[
         "FLASKY_POSTS_PER_PAGE"], error_out=False)
-    posts=pagination.items
-    return render_template('index.html', posts=posts, form=form,pagination=pagination)
+    posts = pagination.items
+    return render_template('index.html', posts=posts, form=form, pagination=pagination)
 
 
 @main.route('/user/<username>')
@@ -81,7 +82,76 @@ def edit_profile_admin(id):
     form.about_me.data = user.about_me
     return render_template('edit_profile.html', form=form, user=user)
 
-@main.route('/post/<int:id>')#文章的固定链接
+
+@main.route('/post/<int:id>')  # 文章的固定链接
 def post(id):
-    post=models.Post.query.get_or_404(id)
-    return render_template('post.html',posts=[post])  #post.html 模板接收一个列表作为参数,必须要传入列表
+    post = models.Post.query.get_or_404(id)
+    return render_template('post.html', posts=[post])  # post.html 模板接收一个列表作为参数,必须要传入列表
+
+
+@main.route('/follow/<username>')  # “关注”路由和视图函数
+@login_required
+@permission_required(Permission.FOLLOW)
+def follow(username):
+    user = models.User.query.filter_by(username=username).first()
+    if user is None:
+        flash('Invalid user')
+        return redirect(url_for('main.index'))
+    if current_user.is_following(user):
+        flash("You are already following this user.")
+        return redirect(url_for('main.user', username=username))
+    current_user.follow(user)
+    flash("You are now following %s" % username)
+    return redirect(url_for('main.user', username=username))
+
+
+@main.route('/unfollow/<username>')
+@login_required
+@permission_required(Permission.FOLLOW)
+def unfollow(username):
+    user = models.User.query.filter_by(username=username).first()
+    if user is None:
+        flash('Invalid user')
+        return redirect(url_for('main.index'))
+    if current_user.is_following(user):
+        current_user.unfollow(user)
+        flash('You have unfolloed %s' % username)
+        return redirect(url_for('main.user', username=username))
+    else:
+        flash('You are not following this user.')
+        return redirect(url_for('main.user', username=username))
+
+
+@main.route('/followers/<username>')  # Ta 关注de ren路由和视图函数
+def followers(username):
+    user = models.User.query.filter_by(username=username).first()
+    if user is None:
+        flash('Invalid user')
+        return redirect(url_for('main.index'))
+    page = request.args.get('page', 1, type=int)
+    pagination = user.followers.paginate(
+        page=page, per_page=15, error_out=False
+    )
+    follows = [
+        {'user': item.follower, 'timestamp': item.timestamp}
+        for item in pagination.items
+    ]
+    return render_template('followers.html', user=user, title='Followers of', endpoint='.followers',
+                           pagination=pagination, follows=follows)
+
+@main.route('/followed-by/<username>') #关注Ta de ren路由和视图函数
+def followed_by(username):
+    user=models.User.query.filter_by(username=username).first()
+    if user is None:
+        flash('Invalid user')
+        return redirect(url_for('main.index'))
+    page=request.args.get('page',1,type=int)
+    pagination=user.followed.paginate(
+        page,per_page=15,error_out=False
+    )
+    follows=[
+        {'user': item.followed, 'timestamp': item.timestamp}
+        for item in pagination.items
+    ]
+    return render_template('followers.html',user=user, title='Followed_by', endpoint='.followed_by',
+                           pagination=pagination, follows=follows)
