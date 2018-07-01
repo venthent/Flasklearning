@@ -56,3 +56,8 @@ class PostForm(FlaskForm):
     #body=TextAreaField("Say something:",validators=[DataRequired()])
     submit=SubmitField('Submit')
 
+#评论输入表单
+class CommentForm(FlaskForm):
+    body=StringField('',validators=[DataRequired()])
+    submit=SubmitField('Comment')
+

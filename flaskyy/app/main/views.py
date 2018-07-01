@@ -1,7 +1,7 @@
 from datetime import datetime
-from flask import render_template, session, redirect, url_for, abort, flash, request, current_app,make_response
+from flask import render_template, session, redirect, url_for, abort, flash, request, current_app, make_response
 from Flasklearning.flaskyy.app.main import main
-from .forms import NameForm, EditProfileForm, EditProfileAdminForm, PostForm
+from .forms import NameForm, EditProfileForm, EditProfileAdminForm, PostForm, CommentForm
 from Flasklearning.flaskyy.app import db, models
 from flask_login import login_required, current_user
 from Flasklearning.flaskyy.app.decorators import admin_required
@@ -24,15 +24,15 @@ def index():
         return redirect(url_for('main.index'))
     show_followed = False
     if current_user.is_authenticated:
-        show_followed=bool(request.cookies.get('show_followed',''))
+        show_followed = bool(request.cookies.get('show_followed', ''))
     if show_followed:
-        query=current_user.followed_posts
+        query = current_user.followed_posts
     else:
-        query=models.Post.query
+        query = models.Post.query
     pagination = query.order_by(models.Post.timestamp.desc()).paginate(page, per_page=current_app.config[
         "FLASKY_POSTS_PER_PAGE"], error_out=False)
     posts = pagination.items
-    return render_template('index.html', posts=posts, form=form, show_followed=show_followed,pagination=pagination)
+    return render_template('index.html', posts=posts, form=form, show_followed=show_followed, pagination=pagination)
 
 
 @main.route('/user/<username>')
@@ -90,10 +90,25 @@ def edit_profile_admin(id):
     return render_template('edit_profile.html', form=form, user=user)
 
 
-@main.route('/post/<int:id>')  # 文章的固定链接
+@main.route('/post/<int:id>',methods=['GET',"POST"])  # 支持博客文章评论
 def post(id):
     post = models.Post.query.get_or_404(id)
-    return render_template('post.html', posts=[post])  # post.html 模板接收一个列表作为参数,必须要传入列表
+    form = CommentForm()
+    if form.validate_on_submit():
+        comment = models.Comment(body=form.body.data, post=post,
+                                 author=current_user._get_current_object())  # 真正的 User 对象要使用表达式 current_user._get_current_object() 获取
+        db.session.add(comment)
+        db.session.commit()
+        flash('Your comment has been published.')
+        return redirect(url_for('main.post', id=post.id, pagr=-1))
+    page = request.args.get('page', 1, type=int)
+    if page == -1:
+        page = (post.comments.count() - 1) / 15 + 1
+    pagination = post.comments.order_by(models.Comment.timestamp.asc()).paginate(
+        page, per_page=15, error_out=False
+    )
+    comments=pagination.items
+    return render_template('post.html', posts=[post],form=form,comments=comments,pagination=pagination)  # post.html 模板接收一个列表作为参数,必须要传入列表
 
 
 @main.route('/follow/<username>')  # “关注”路由和视图函数
@@ -146,31 +161,34 @@ def followers(username):
     return render_template('followers.html', user=user, title='Followers of', endpoint='.followers',
                            pagination=pagination, follows=follows)
 
-@main.route('/followed-by/<username>') #关注Ta de ren路由和视图函数
+
+@main.route('/followed-by/<username>')  # 关注Ta de ren路由和视图函数
 def followed_by(username):
-    user=models.User.query.filter_by(username=username).first()
+    user = models.User.query.filter_by(username=username).first()
     if user is None:
         flash('Invalid user')
         return redirect(url_for('main.index'))
-    page=request.args.get('page',1,type=int)
-    pagination=user.followed.paginate(
-        page,per_page=15,error_out=False
+    page = request.args.get('page', 1, type=int)
+    pagination = user.followed.paginate(
+        page, per_page=15, error_out=False
     )
-    follows=[
+    follows = [
         {'user': item.followed, 'timestamp': item.timestamp}
         for item in pagination.items
     ]
-    return render_template('followers.html',user=user, title='Followed_by', endpoint='.followed_by',
+    return render_template('followers.html', user=user, title='Followed_by', endpoint='.followed_by',
                            pagination=pagination, follows=follows)
+
 
 @main.route('/all')
 def show_all():
-    resp=make_response(redirect(url_for('main.index')))
-    resp.set_cookie('show_followed','',max_age=30*24*60*60)
+    resp = make_response(redirect(url_for('main.index')))
+    resp.set_cookie('show_followed', '', max_age=30 * 24 * 60 * 60)
     return resp
+
 
 @main.route('/followed')
 def show_followed():
-    resp=make_response(redirect(url_for('main.index')))
-    resp.set_cookie('show_followed','1',max_age=30*24*60*60)
+    resp = make_response(redirect(url_for('main.index')))
+    resp.set_cookie('show_followed', '1', max_age=30 * 24 * 60 * 60)
     return resp

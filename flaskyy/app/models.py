@@ -86,6 +86,7 @@ class User(UserMixin, db.Model):
         lazy='dynamic',
         cascade='all,delete-orphan'
     )
+    comments=db.relationship('Comment',backref='author',lazy='dynamic')#users与 comments 表之间的一对多关系
 
     def __init__(self, **kwargs):
         '''用户在程序中注册账户时,会被赋予适当的角色。大多数用户在注册时赋予的角色都是
@@ -202,6 +203,7 @@ class Post(db.Model):
     timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)  # utcnow need not "()"
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     body_html = db.Column(db.Text)
+    comments=db.relationship('Comment',backref='post',lazy='dynamic') #posts 表与 comments 表之间的一对多关系
 
     @staticmethod
     def on_changed_body(target, value, oldervalue, initiator):
@@ -229,6 +231,26 @@ class Post(db.Model):
             )
             db.session.add(p)
             db.session.commit()
+
+class Comment(db.Model): #Comment 模型
+    __tablename__='comments'
+    id=db.Column(db.Integer,primary_key=True)
+    body=db.Column(db.Text)
+    body_html=db.Column(db.Text)
+    timestamp=db.Column(db.DateTime,index=True,default=datetime.utcnow)
+    disable=db.Column(db.Boolean)
+    author_id=db.Column(db.Integer,db.ForeignKey('users.id'))
+    post_id=db.Column(db.Integer,db.ForeignKey('posts.id'))
+
+    @staticmethod
+    def on_changed_body(target,value,oldvalue,initiator):
+        allowed_tags=[
+            'a', 'abbr', 'acronym', 'b', 'code', 'em', 'i',
+            'strong'
+        ]
+        target.body_html=bleach.linkify(
+            bleach.clean(markdown(value,output_format='html'),tags=allowed_tags,strip=True)
+        )
 
 
 class AnonymousUser(AnonymousUserMixin):
@@ -258,3 +280,4 @@ def load_user(user_id):
 
 
 db.event.listen(Post.body, 'set', Post.on_changed_body)  # on_changed_body 函数注册在 body 字段上,是 SQLAlchemy“set”事件的监听程序
+db.event.listen(Comment.body,'set',Comment.on_changed_body)
