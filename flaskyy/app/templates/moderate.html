@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as macros %}
+{% block title %}Flasky - Comment Moderation{% endblock %}
+{% block page_content %}
+<div class="page-header">
+    <h1>Comment Moderate</h1>
+</div>
+{% set moderate=True %}<!--用 Jinja2 提供的 set 指令定义一个模板变量 moderate ,并将其值设为 True-->
+{% include '_comments.html' %}
+{% if pagination %}
+<div class="pagination">
+    {{ macros.pagination_widget(pagination, '.moderate') }}
+</div>
+{% endif %}
+
+{% endblock %}

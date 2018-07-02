@@ -192,3 +192,35 @@ def show_followed():
     resp = make_response(redirect(url_for('main.index')))
     resp.set_cookie('show_followed', '1', max_age=30 * 24 * 60 * 60)
     return resp
+
+@main.route('/moderate')
+@login_required
+@permission_required(Permission.MODERATE_COMMENTS)
+def moderate():
+    page=request.args.get('page',1,type=int)
+    pagination=models.Comment.query.order_by(models.Comment.timestamp.desc()).paginate(
+        page=page,per_page=15,error_out=False
+    )
+    comments=pagination.items
+    return render_template('moderate.html',pagination=pagination,comments=comments,page=page)
+
+@main.route('/moderate/enable/<int:id>')
+@login_required
+@permission_required(Permission.MODERATE_COMMENTS)
+def moderate_enable(id):
+     comment=models.Comment.query.get_or_404(id)
+     comment.disable=False
+     db.session.add(comment)
+     db.session.commit()
+     return redirect(url_for('main.moderate',page=request.args.get('page',1,type=int)))
+
+@main.route('/moderate/disable/<int:id>')
+@login_required
+@permission_required(Permission.MODERATE_COMMENTS)
+def moderate_disable(id):
+    comment=models.Comment.query.get_or_404(id)
+    comment.disable=True
+    db.session.add(comment)
+    db.session.commit()
+    return redirect(url_for('main.moderate',page=request.args.get('page',1,type=int)))
+
