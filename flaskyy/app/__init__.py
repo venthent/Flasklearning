@@ -31,6 +31,7 @@ login_manager.login_view = 'auth.login'  # login_view 属性设置登录页面�
 def create_app(config_name):
     from .main import main as main_bluprint
     from .auth import auth as auth_bluprint
+    from Flasklearning.flaskyy.app.api_1_0 import api as api_1_0_blueprint
     app = Flask(__name__)
     app.config.from_object(config.config[config_name])
     config.config[config_name].init_app(app)
@@ -45,7 +46,7 @@ def create_app(config_name):
 
     app.register_blueprint(main_bluprint)
     # url_prefix 是可选参数。如果使用了这个参数,注册后蓝本中定义的
-    # 所有路由都会加上指定的前缀,即这个例子中的 /auth。例如,/login 路由会注册成 /auth/
-    # login
+    # 所有路由都会加上指定的前缀,即这个例子中的 /auth。例如,/login 路由会注册成 /auth/login
     app.register_blueprint(auth_bluprint, url_prefix='/auth')
+    app.register_blueprint(api_1_0_blueprint,url_prefix='/api/v1.0')
     return app

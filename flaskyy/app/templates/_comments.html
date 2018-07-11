@@ -23,7 +23,7 @@
                 {% endif %}
                 {% endif %}
             </div>
-            
+
               <br>
               {% if comment.disable %}<!--在每篇评论的下方,协管员还能看到一个按钮,用来切换评论的状态-->
               <a class="btn btn-default btn-xs" href="{{ url_for('main.moderate_enable',id=comment.id,page=page) }}">Enable</a>

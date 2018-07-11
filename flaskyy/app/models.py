@@ -1,12 +1,14 @@
 from datetime import datetime
 import bleach
-from flask import current_app
+from flask import current_app,url_for
 from markdown import markdown
 from flask_login import UserMixin, AnonymousUserMixin
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from werkzeug.security import generate_password_hash, check_password_hash
 from Flasklearning.flaskyy.app import db
 from Flasklearning.flaskyy.app import login_manager
+from Flasklearning.flaskyy.app.exceptions import ValidationError
+
 
 
 class Permission:
@@ -86,7 +88,7 @@ class User(UserMixin, db.Model):
         lazy='dynamic',
         cascade='all,delete-orphan'
     )
-    comments=db.relationship('Comment',backref='author',lazy='dynamic')#users与 comments 表之间的一对多关系
+    comments = db.relationship('Comment', backref='author', lazy='dynamic')  # users与 comments 表之间的一对多关系
 
     def __init__(self, **kwargs):
         '''用户在程序中注册账户时,会被赋予适当的角色。大多数用户在注册时赋予的角色都是
@@ -103,8 +105,12 @@ class User(UserMixin, db.Model):
 
     def generate_confirmation_token(self, expiration=3600):
         # 确认用户账户
-        s = Serializer(current_app.config['SECRET_KEY'], expiration)
+        s = Serializer(current_app.config['SECRET_KEY'], expiration)  # generate_confirmation_token() 方法生成一个令牌
         return s.dumps({'confirm': self.id})
+
+    def generate_auth_token(self, expiration):
+        s = Serializer(current_app.config['SECRET_KEY'], expires_in=expiration)
+        return s.dumps({'id': self.id})
 
     def confirm(self, token):
         s = Serializer(current_app.config['SECRET_KEY'])
@@ -139,8 +145,7 @@ class User(UserMixin, db.Model):
             db.session.commit()
 
     def is_following(self, user):
-        return self.followed.filter_by(followed_id = user.id).first() is not None
-
+        return self.followed.filter_by(followed_id=user.id).first() is not None
 
     def is_followed_by(self, user):
         return self.followers.filter_by(follower_id=user.id).first() is not None
@@ -178,9 +183,20 @@ class User(UserMixin, db.Model):
                 db.session.commit()
             except IntegrityError:
                 db.session.rollback()
+
+    @staticmethod
+    def verify_auth_token(token):
+        '''verify_auth_token() 是静态方法,因为只有解码令牌后才能知道用户是谁'''
+        s = Serializer(current_app.config['SECRET_KEY'])
+        try:
+            data = s.loads(token)
+        except:
+            return None
+        return User.query.get(data['id'])
+
     @property
-    def followed_posts(self):#获取所关注用户的文章
-        return Post.query.join(Follow,Follow.followed_id==Post.author_id).filter(Follow.follower_id==self.id)
+    def followed_posts(self):  # 获取所关注用户的文章
+        return Post.query.join(Follow, Follow.followed_id == Post.author_id).filter(Follow.follower_id == self.id)
 
     def verity_password(self, password):
         '''verify_password 方 法 接 受 一 个 参 数( 即 密 码 )
@@ -191,6 +207,18 @@ class User(UserMixin, db.Model):
 
     def ping(self):
         self.last_seen = datetime.utcnow()
+
+    def to_json(self): #  把用户转换成 JSON 格式的序列化字典
+        json_user={
+            'url':url_for('api.get_post',id=self.id,_external=True),
+            'username':self.username,
+            'member_since':self.member_since,
+            'last_seen':self.last_seen,
+            'posts':url_for('api.get_user_posts',id=self.id,_external=True),
+            'followed_posts':url_for('api.get_user_followed_posts',_external=True,id=self.id),
+            'post_count':self.posts.count()
+        }
+        return json_user
 
     def __repr__(self):
         return '<User % r>' % self.username
@@ -203,7 +231,7 @@ class Post(db.Model):
     timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)  # utcnow need not "()"
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     body_html = db.Column(db.Text)
-    comments=db.relationship('Comment',backref='post',lazy='dynamic') #posts 表与 comments 表之间的一对多关系
+    comments = db.relationship('Comment', backref='post', lazy='dynamic')  # posts 表与 comments 表之间的一对多关系
 
     @staticmethod
     def on_changed_body(target, value, oldervalue, initiator):
@@ -232,24 +260,47 @@ class Post(db.Model):
             db.session.add(p)
             db.session.commit()
 
-class Comment(db.Model): #Comment 模型
-    __tablename__='comments'
-    id=db.Column(db.Integer,primary_key=True)
-    body=db.Column(db.Text)
-    body_html=db.Column(db.Text)
-    timestamp=db.Column(db.DateTime,index=True,default=datetime.utcnow)
-    disable=db.Column(db.Boolean)
-    author_id=db.Column(db.Integer,db.ForeignKey('users.id'))
-    post_id=db.Column(db.Integer,db.ForeignKey('posts.id'))
+    def to_json(self):
+        json_post={
+            'url':url_for('api.get_post',id=self.id,_external=True),
+            'body':self.body,
+            'bodyhtml':self.body_html,
+            'timestamp':self.timestamp,
+            'author':url_for('api.get_user',id=self.author_id,_external=True),
+            'comments':url_for('api.get_post_comments',id=self.id,_external=True),
+            'comments_count':self.comments.count() #comment_count 字段是博客文章的评论数量,并不是模型的真实属性
+        }
+        return json_post
 
     @staticmethod
-    def on_changed_body(target,value,oldvalue,initiator):
-        allowed_tags=[
+    def from_json(json_post): #从 JSON 格式数据创建一篇博客文章
+        body=json_post.get('body')
+        if body is None or body=="":
+            raise ValidationError('post does not have a body')
+        return Post(body=body)
+
+
+
+
+
+class Comment(db.Model):  # Comment 模型
+    __tablename__ = 'comments'
+    id = db.Column(db.Integer, primary_key=True)
+    body = db.Column(db.Text)
+    body_html = db.Column(db.Text)
+    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
+    disable = db.Column(db.Boolean)
+    author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    post_id = db.Column(db.Integer, db.ForeignKey('posts.id'))
+
+    @staticmethod
+    def on_changed_body(target, value, oldvalue, initiator):
+        allowed_tags = [
             'a', 'abbr', 'acronym', 'b', 'code', 'em', 'i',
             'strong'
         ]
-        target.body_html=bleach.linkify(
-            bleach.clean(markdown(value,output_format='html'),tags=allowed_tags,strip=True)
+        target.body_html = bleach.linkify(
+            bleach.clean(markdown(value, output_format='html'), tags=allowed_tags, strip=True)
         )
 
 
@@ -270,6 +321,7 @@ class AnonymousUser(AnonymousUserMixin):
         return Post.query.join(Follow, Follow.followed_id == Post.author_id) \
             .filter(Follow.follower_id == None)
 
+
 login_manager.anonymous_user = AnonymousUser
 
 
@@ -280,4 +332,4 @@ def load_user(user_id):
 
 
 db.event.listen(Post.body, 'set', Post.on_changed_body)  # on_changed_body 函数注册在 body 字段上,是 SQLAlchemy“set”事件的监听程序
-db.event.listen(Comment.body,'set',Comment.on_changed_body)
+db.event.listen(Comment.body, 'set', Comment.on_changed_body)
